@@ -25,7 +25,10 @@ impl Player {
     }
 
     pub fn update(&mut self, dt: f32) {
-        let x_move = match (is_key_down(KeyCode::Left), is_key_down(KeyCode::Right)) {
+        let x_move = match (
+            is_key_down(KeyCode::Left) || is_key_down(KeyCode::A),
+            is_key_down(KeyCode::Right) || is_key_down(KeyCode::D),
+        ) {
             (true, false) => -1f32,
             (false, true) => 1f32,
             _ => 0f32,
