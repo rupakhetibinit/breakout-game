@@ -21,6 +21,37 @@ pub fn draw_title_text(text: &str, font: &Font) {
     )
 }
 
+fn reset_game(
+    score: &mut i32,
+    player_lives: &mut i32,
+    blocks: &mut Vec<Block>,
+    balls: &mut Vec<Ball>,
+    player: &mut Player,
+) {
+    *player = Player::new();
+    *score = 0;
+    *player_lives = 3;
+    balls.clear();
+    blocks.clear();
+    init_blocks(blocks)
+}
+
+fn init_blocks(blocks: &mut Vec<Block>) {
+    let (width, height) = (6, 6);
+    let padding = 5f32;
+    let total_block_size = BLOCK_SIZE + vec2(padding, padding);
+    let board_start_pos = vec2(
+        (screen_width() - total_block_size.x * width as f32) * 0.5f32,
+        50f32,
+    );
+
+    for i in 0..width * height {
+        let block_x = (i % width) as f32 * total_block_size.x;
+        let block_y = (i / width) as f32 * total_block_size.y;
+        blocks.push(Block::new(board_start_pos + vec2(block_x, block_y)))
+    }
+}
+
 pub enum GameState {
     Menu,
     Game,
@@ -163,19 +194,8 @@ async fn main() {
     let mut player_lives = 3;
     let mut game_state = GameState::Menu;
 
-    let (width, height) = (6, 6);
-    let padding = 5f32;
-    let total_block_size = BLOCK_SIZE + vec2(padding, padding);
-    let board_start_pos = vec2(
-        (screen_width() - total_block_size.x * width as f32) * 0.5f32,
-        50f32,
-    );
+    init_blocks(&mut blocks);
 
-    for i in 0..width * height {
-        let block_x = (i % width) as f32 * total_block_size.x;
-        let block_y = (i / width) as f32 * total_block_size.y;
-        blocks.push(Block::new(board_start_pos + vec2(block_x, block_y)))
-    }
     balls.push(Ball::new(vec2(
         screen_width() * 0.5f32,
         screen_width() * 0.5f32,
@@ -195,13 +215,27 @@ async fn main() {
             GameState::Dead => {
                 draw_title_text(&format!("You died! {} score", score), &font);
                 if is_key_pressed(KeyCode::Space) {
-                    game_state = GameState::Menu
+                    game_state = GameState::Menu;
+                    reset_game(
+                        &mut score,
+                        &mut player_lives,
+                        &mut blocks,
+                        &mut balls,
+                        &mut player,
+                    )
                 }
             }
             GameState::LevelCompleted => {
                 draw_title_text(&format!("You win! {} score", score), &font);
                 if is_key_pressed(KeyCode::Space) {
-                    game_state = GameState::Menu
+                    game_state = GameState::Menu;
+                    reset_game(
+                        &mut score,
+                        &mut player_lives,
+                        &mut blocks,
+                        &mut balls,
+                        &mut player,
+                    )
                 }
             }
             GameState::Menu => {
