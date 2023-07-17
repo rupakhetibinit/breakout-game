@@ -1,3 +1,5 @@
+use std::default;
+
 use macroquad::prelude::*;
 
 const PLAYER_SIZE: Vec2 = vec2(150f32, 40f32);
@@ -5,6 +7,29 @@ const PLAYER_SPEED: f32 = 900f32;
 const BLOCK_SIZE: Vec2 = vec2(100f32, 40f32);
 const BALL_SIZE: f32 = 50f32;
 const BALL_SPEED: f32 = 400f32;
+
+pub fn draw_title_text(text: &str, font: &Font) {
+    let dims = measure_text(text, Some(font), 50u16, 1.0f32);
+    draw_text_ex(
+        text,
+        screen_width() * 0.5f32 - dims.width * 0.5f32,
+        screen_height() * 0.5f32 - dims.height * 0.5f32,
+        TextParams {
+            font: Some(font),
+            font_size: 50u16,
+            color: BLACK,
+            ..Default::default()
+        },
+    )
+}
+
+pub enum GameState {
+    Menu,
+    Game,
+    LevelCompleted,
+    Dead,
+}
+
 struct Player {
     rect: Rect,
 }
@@ -55,12 +80,16 @@ impl Block {
     pub fn new(pos: Vec2) -> Self {
         Self {
             rect: Rect::new(pos.x, pos.y, BLOCK_SIZE.x, BLOCK_SIZE.y),
-            lives: 1,
+            lives: 2,
         }
     }
 
     pub fn draw(&self) {
-        draw_rectangle(self.rect.x, self.rect.y, self.rect.w, self.rect.h, DARKGRAY)
+        let color = match self.lives {
+            2 => RED,
+            _ => ORANGE,
+        };
+        draw_rectangle(self.rect.x, self.rect.y, self.rect.w, self.rect.h, color)
     }
 }
 
@@ -128,9 +157,13 @@ pub fn resolve_collision(a: &mut Rect, vel: &mut Vec2, b: &Rect) -> bool {
 
 #[macroquad::main("Breakout Game")]
 async fn main() {
+    let font = load_ttf_font("res/Roboto-Regular.ttf").await.unwrap();
+    let mut score = 0;
     let mut player = Player::new();
     let mut blocks: Vec<_> = Vec::new();
     let mut balls = Vec::new();
+    let mut player_lives = 3;
+    let mut game_state = GameState::Menu;
 
     let (width, height) = (6, 6);
     let padding = 5f32;
@@ -168,10 +201,20 @@ async fn main() {
             for block in blocks.iter_mut() {
                 if resolve_collision(&mut ball.rect, &mut ball.vel, &block.rect) {
                     block.lives -= 1;
+                    if block.lives <= 0 {
+                        score += 10;
+                    }
                 }
             }
         }
 
+        let balls_len = balls.len();
+        let was_last_ball = balls_len == 1;
+        balls.retain(|ball| ball.rect.y < screen_height());
+        let removed_balls = balls_len - balls.len();
+        if removed_balls > 0 && was_last_ball {
+            player_lives -= 1;
+        }
         blocks.retain(|block| block.lives > 0);
 
         clear_background(WHITE);
@@ -182,6 +225,41 @@ async fn main() {
         for ball in balls.iter() {
             ball.draw();
         }
+
+        match game_state {
+            GameState::Dead => draw_title_text(&format!("You died! {} score", score), &font),
+            GameState::LevelCompleted => {
+                draw_title_text(&format!("You win! {} score", score), &font)
+            }
+            GameState::Menu => draw_title_text("Press SPACE to start", &font),
+            GameState::Game => {
+                let score_text = format!("Score: {}", score);
+                let score_text_dim = measure_text(&score_text, Some(&font), 30u16, 1.0);
+                draw_text_ex(
+                    &score_text,
+                    screen_width() * 0.5f32 - score_text_dim.width * 0.5f32,
+                    40.0,
+                    TextParams {
+                        font: Some(&font),
+                        font_size: 30u16,
+                        color: BLACK,
+                        ..TextParams::default()
+                    },
+                );
+                draw_text_ex(
+                    &format!("Lives: {}", player_lives),
+                    30.0,
+                    40.0,
+                    TextParams {
+                        font: Some(&font),
+                        font_size: 30u16,
+                        color: BLACK,
+                        ..TextParams::default()
+                    },
+                );
+            }
+        }
+
         next_frame().await
     }
 }
