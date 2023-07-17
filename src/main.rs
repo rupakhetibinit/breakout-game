@@ -1,5 +1,3 @@
-use std::default;
-
 use macroquad::prelude::*;
 
 const PLAYER_SIZE: Vec2 = vec2(150f32, 40f32);
@@ -184,39 +182,6 @@ async fn main() {
     )));
 
     loop {
-        if is_key_pressed(KeyCode::Space) {
-            balls.push(Ball::new(vec2(
-                screen_width() * 0.5f32,
-                screen_width() * 0.5f32,
-            )));
-        }
-
-        player.update(get_frame_time());
-        for ball in balls.iter_mut() {
-            ball.update(get_frame_time());
-        }
-
-        for ball in balls.iter_mut() {
-            resolve_collision(&mut ball.rect, &mut ball.vel, &player.rect);
-            for block in blocks.iter_mut() {
-                if resolve_collision(&mut ball.rect, &mut ball.vel, &block.rect) {
-                    block.lives -= 1;
-                    if block.lives <= 0 {
-                        score += 10;
-                    }
-                }
-            }
-        }
-
-        let balls_len = balls.len();
-        let was_last_ball = balls_len == 1;
-        balls.retain(|ball| ball.rect.y < screen_height());
-        let removed_balls = balls_len - balls.len();
-        if removed_balls > 0 && was_last_ball {
-            player_lives -= 1;
-        }
-        blocks.retain(|block| block.lives > 0);
-
         clear_background(WHITE);
         player.draw();
         for block in blocks.iter() {
@@ -227,12 +192,64 @@ async fn main() {
         }
 
         match game_state {
-            GameState::Dead => draw_title_text(&format!("You died! {} score", score), &font),
-            GameState::LevelCompleted => {
-                draw_title_text(&format!("You win! {} score", score), &font)
+            GameState::Dead => {
+                draw_title_text(&format!("You died! {} score", score), &font);
+                if is_key_pressed(KeyCode::Space) {
+                    game_state = GameState::Menu
+                }
             }
-            GameState::Menu => draw_title_text("Press SPACE to start", &font),
+            GameState::LevelCompleted => {
+                draw_title_text(&format!("You win! {} score", score), &font);
+                if is_key_pressed(KeyCode::Space) {
+                    game_state = GameState::Menu
+                }
+            }
+            GameState::Menu => {
+                draw_title_text("Press SPACE to start", &font);
+                if is_key_pressed(KeyCode::Space) {
+                    game_state = GameState::Game;
+                }
+            }
             GameState::Game => {
+                if is_key_pressed(KeyCode::Space) {
+                    balls.push(Ball::new(vec2(
+                        screen_width() * 0.5f32,
+                        screen_width() * 0.5f32,
+                    )));
+                }
+
+                player.update(get_frame_time());
+                for ball in balls.iter_mut() {
+                    ball.update(get_frame_time());
+                }
+
+                for ball in balls.iter_mut() {
+                    resolve_collision(&mut ball.rect, &mut ball.vel, &player.rect);
+                    for block in blocks.iter_mut() {
+                        if resolve_collision(&mut ball.rect, &mut ball.vel, &block.rect) {
+                            block.lives -= 1;
+                            if block.lives <= 0 {
+                                score += 10;
+                            }
+                        }
+                    }
+                }
+
+                let balls_len = balls.len();
+                let was_last_ball = balls_len == 1;
+                balls.retain(|ball| ball.rect.y < screen_height());
+                let removed_balls = balls_len - balls.len();
+                if removed_balls > 0 && was_last_ball {
+                    player_lives -= 1;
+                    if player_lives <= 0 {
+                        game_state = GameState::Dead;
+                    }
+                }
+                blocks.retain(|block| block.lives > 0);
+                if blocks.is_empty() {
+                    game_state = GameState::LevelCompleted
+                }
+
                 let score_text = format!("Score: {}", score);
                 let score_text_dim = measure_text(&score_text, Some(&font), 30u16, 1.0);
                 draw_text_ex(
