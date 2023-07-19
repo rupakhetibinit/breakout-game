@@ -48,7 +48,14 @@ fn init_blocks(blocks: &mut Vec<Block>) {
     for i in 0..width * height {
         let block_x = (i % width) as f32 * total_block_size.x;
         let block_y = (i / width) as f32 * total_block_size.y;
-        blocks.push(Block::new(board_start_pos + vec2(block_x, block_y)))
+        blocks.push(Block::new(
+            board_start_pos + vec2(block_x, block_y),
+            BlockType::Regular,
+        ));
+    }
+    for _ in 0..4 {
+        let random_index = rand::gen_range(0, blocks.len());
+        blocks[random_index].block_type = BlockType::SpawnBallOnDeath;
     }
 }
 
@@ -100,23 +107,33 @@ impl Player {
     }
 }
 
+#[derive(PartialEq)]
+enum BlockType {
+    Regular,
+    SpawnBallOnDeath,
+}
 struct Block {
     rect: Rect,
     lives: i32,
+    block_type: BlockType,
 }
 
 impl Block {
-    pub fn new(pos: Vec2) -> Self {
+    pub fn new(pos: Vec2, block_type: BlockType) -> Self {
         Self {
             rect: Rect::new(pos.x, pos.y, BLOCK_SIZE.x, BLOCK_SIZE.y),
             lives: 2,
+            block_type,
         }
     }
 
     pub fn draw(&self) {
-        let color = match self.lives {
-            2 => RED,
-            _ => ORANGE,
+        let color = match self.block_type {
+            BlockType::SpawnBallOnDeath => GREEN,
+            BlockType::Regular => match self.lives {
+                2 => RED,
+                _ => ORANGE,
+            },
         };
         draw_rectangle(self.rect.x, self.rect.y, self.rect.w, self.rect.h, color)
     }
@@ -131,12 +148,12 @@ impl Ball {
     pub fn new(pos: Vec2) -> Self {
         Self {
             rect: Rect::new(pos.x, pos.y, BALL_SIZE, BALL_SIZE),
-            vel: vec2(rand::gen_range(-1f32, 1f32), 1f32).normalize(),
+            vel: vec2(rand::gen_range(-1f32, 1f32), rand::gen_range(-1f32, 1f32)).normalize(),
         }
     }
 
     pub fn draw(&self) {
-        draw_rectangle(self.rect.x, self.rect.y, self.rect.w, self.rect.h, GRAY)
+        draw_rectangle(self.rect.x, self.rect.y, self.rect.w, self.rect.h, BLACK)
     }
 
     pub fn update(&mut self, dt: f32) {
@@ -169,15 +186,15 @@ pub fn resolve_collision(a: &mut Rect, vel: &mut Vec2, b: &Rect) -> bool {
         true => {
             a.y -= to_signum.y * intersection.h;
             match to_signum.y > 0f32 {
-                true => vel.y = -vel.y.abs(),
-                false => vel.y = vel.y.abs(),
+                true => vel.y = -vel.y.abs() * 1.01,
+                false => vel.y = vel.y.abs() * 1.01,
             }
         }
         false => {
             a.x -= to_signum.x * intersection.w;
             match to_signum.x < 0f32 {
-                true => vel.x = vel.x.abs(),
-                false => vel.x = -vel.x.abs(),
+                true => vel.x = vel.x.abs() * 1.01,
+                false => vel.x = -vel.x.abs() * 1.01,
             }
         }
     }
@@ -245,18 +262,12 @@ async fn main() {
                 }
             }
             GameState::Game => {
-                if is_key_pressed(KeyCode::Space) {
-                    balls.push(Ball::new(vec2(
-                        screen_width() * 0.5f32,
-                        screen_width() * 0.5f32,
-                    )));
-                }
-
                 player.update(get_frame_time());
                 for ball in balls.iter_mut() {
                     ball.update(get_frame_time());
                 }
 
+                let mut spawn_later = vec![];
                 for ball in balls.iter_mut() {
                     resolve_collision(&mut ball.rect, &mut ball.vel, &player.rect);
                     for block in blocks.iter_mut() {
@@ -264,17 +275,27 @@ async fn main() {
                             block.lives -= 1;
                             if block.lives <= 0 {
                                 score += 10;
+                                if block.block_type == BlockType::SpawnBallOnDeath {
+                                    spawn_later.push(Ball::new(block.rect.point()))
+                                }
                             }
                         }
                     }
                 }
 
+                for ball in spawn_later.into_iter() {
+                    balls.push(ball);
+                }
+
                 let balls_len = balls.len();
-                let was_last_ball = balls_len == 1;
+
                 balls.retain(|ball| ball.rect.y < screen_height());
                 let removed_balls = balls_len - balls.len();
-                if removed_balls > 0 && was_last_ball {
+                if removed_balls > 0 && balls.is_empty() {
                     player_lives -= 1;
+                    balls.push(Ball::new(
+                        player.rect.point() + vec2(player.rect.w * 0.5f32, -50f32),
+                    ));
                     if player_lives <= 0 {
                         game_state = GameState::Dead;
                     }
