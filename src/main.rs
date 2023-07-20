@@ -32,6 +32,10 @@ fn reset_game(
     *score = 0;
     *player_lives = 3;
     balls.clear();
+    balls.push(Ball::new(vec2(
+        screen_width() * 0.5f32,
+        screen_width() * 0.5f32,
+    )));
     blocks.clear();
     init_blocks(blocks)
 }
